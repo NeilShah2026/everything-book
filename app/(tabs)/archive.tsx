@@ -178,7 +178,7 @@ export default function ArchiveScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
+    <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: C.bg }}>
       {/* ── Header ── */}
       <View style={{ backgroundColor: C.headerBg, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, ...SHADOW }}>
         <Text style={{ fontSize: 26, fontWeight: "800", color: C.text, letterSpacing: -0.5, marginBottom: 14 }}>

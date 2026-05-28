@@ -98,7 +98,7 @@ export default function PlannerScreen() {
   }, 0);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
+    <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: C.bg }}>
       {/* ── Header ── */}
       <View style={{ backgroundColor: C.headerBg, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, ...SHADOW }}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>

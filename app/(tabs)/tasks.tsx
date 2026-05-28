@@ -197,7 +197,7 @@ export default function TasksScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
+    <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: C.bg }}>
       {/* ── Header ── */}
       <View style={{ backgroundColor: C.headerBg, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, ...SHADOW }}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
@@ -268,41 +268,43 @@ export default function TasksScreen() {
       )}
 
       {/* ── Draggable Task List ── */}
-      <DraggableFlatList
-        data={displayed}
-        keyExtractor={(item) => item.id}
-        renderItem={renderTask}
-        onDragEnd={handleDragEnd}
-        activationDistance={8}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingTop: 12, paddingBottom: 32 }}
-        ListFooterComponent={
-          doneCount > 0 ? (
-            <View style={{ marginHorizontal: 16, marginTop: 8, padding: 14, borderRadius: 16, backgroundColor: "#f0fdf4", flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Ionicons name="checkmark-circle" size={16} color="#22c55e" />
-              <Text style={{ flex: 1, fontSize: 13, color: "#16a34a", fontWeight: "600" }}>
-                {doneCount} task{doneCount !== 1 ? "s" : ""} completed
+      <View style={{ flex: 1 }}>
+        <DraggableFlatList
+          data={displayed}
+          keyExtractor={(item) => item.id}
+          renderItem={renderTask}
+          onDragEnd={handleDragEnd}
+          activationDistance={8}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingTop: 12, paddingBottom: doneCount > 0 ? 8 : 32 }}
+          ListEmptyComponent={
+            <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 80, paddingHorizontal: 32 }}>
+              <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: C.surface, alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+                <Ionicons name="checkmark-circle-outline" size={36} color={C.border} />
+              </View>
+              <Text style={{ fontSize: 15, fontWeight: "700", color: C.border, textAlign: "center" }}>
+                {search ? "No tasks match your search" : filter !== "All" ? `No ${filter} tasks yet` : "All clear!"}
               </Text>
-              <Text style={{ fontSize: 12, color: "#86efac" }}>→ Archive</Text>
+              {!search && filter === "All" && (
+                <Text style={{ fontSize: 13, color: C.border, marginTop: 6, textAlign: "center" }}>
+                  Tap the + button to add your first task
+                </Text>
+              )}
             </View>
-          ) : null
-        }
-        ListEmptyComponent={
-          <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 80, paddingHorizontal: 32 }}>
-            <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: C.surface, alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
-              <Ionicons name="checkmark-circle-outline" size={36} color={C.border} />
-            </View>
-            <Text style={{ fontSize: 15, fontWeight: "700", color: C.border, textAlign: "center" }}>
-              {search ? "No tasks match your search" : filter !== "All" ? `No ${filter} tasks yet` : "All clear!"}
-            </Text>
-            {!search && filter === "All" && (
-              <Text style={{ fontSize: 13, color: C.border, marginTop: 6, textAlign: "center" }}>
-                Tap the + button to add your first task
-              </Text>
-            )}
-          </View>
-        }
-      />
+          }
+        />
+      </View>
+
+      {/* ── Completed tasks hint — pinned above tab bar, never floating ── */}
+      {doneCount > 0 && (
+        <View style={{ marginHorizontal: 16, marginBottom: 8, padding: 14, borderRadius: 16, backgroundColor: "#f0fdf4", flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Ionicons name="checkmark-circle" size={16} color="#22c55e" />
+          <Text style={{ flex: 1, fontSize: 13, color: "#16a34a", fontWeight: "600" }}>
+            {doneCount} task{doneCount !== 1 ? "s" : ""} completed
+          </Text>
+          <Text style={{ fontSize: 12, color: "#86efac" }}>→ Archive</Text>
+        </View>
+      )}
 
       <AddTaskModal
         visible={showAdd}

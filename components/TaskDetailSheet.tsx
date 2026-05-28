@@ -230,7 +230,7 @@ export default function TaskDetailSheet({ task, visible, onClose, onUpdated, onD
       onRequestClose={onClose}
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
         <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
