@@ -277,12 +277,15 @@ export default function TodayScreen() {
 
                 {upcomingTasks.length > 0 && (
                   <>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
-                      <View style={{ flex: 1, height: 1, backgroundColor: C.border }} />
-                      <Text style={{ fontSize: 10, fontWeight: "800", color: C.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>
-                        Coming up
-                      </Text>
-                      <View style={{ flex: 1, height: 1, backgroundColor: C.border }} />
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 6, marginBottom: 2 }}>
+                      <View style={{ flex: 1, height: 1, backgroundColor: C.borderStrong }} />
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: C.surface, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 }}>
+                        <Ionicons name="time-outline" size={11} color={C.textMuted} />
+                        <Text style={{ fontSize: 10, fontWeight: "800", color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.8 }}>
+                          Coming up
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1, height: 1, backgroundColor: C.borderStrong }} />
                     </View>
                     {upcomingTasks.map((task) => {
                       const bucket = assignBucket(task) as "Tomorrow" | "This Week";
@@ -478,23 +481,45 @@ function UpcomingTaskCard({ task, bucket, today, colors: C, onPress }: {
     : { label: "📅 This Week", bg: "#e0f2fe", text: "#0284c7" };
 
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.75}
-      style={{ backgroundColor: C.surface, borderRadius: 18, flexDirection: "row", overflow: "hidden" }}>
-      <View style={{ width: 3, backgroundColor: stripColor, opacity: 0.45 }} />
-      <View style={{ flex: 1, paddingHorizontal: 14, paddingVertical: 11, flexDirection: "row", alignItems: "flex-start" }}>
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.75}
+      style={{
+        backgroundColor: C.card,
+        borderRadius: 18,
+        flexDirection: "row",
+        overflow: "hidden",
+        borderWidth: 1,
+        borderColor: C.border,
+        ...SHADOW,
+      }}
+    >
+      {/* Dimmed strip — slightly thinner than today tasks to visually de-emphasise */}
+      <View style={{ width: 3, backgroundColor: stripColor, opacity: 0.55 }} />
+      <View style={{ flex: 1, paddingHorizontal: 14, paddingVertical: 12, flexDirection: "row", alignItems: "flex-start" }}>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 14, fontWeight: "600", color: C.textSec, lineHeight: 19, marginBottom: 5 }}>{task.title}</Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 5, alignItems: "center" }}>
+          {/* Bucket badge on its own line so it's clearly legible */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 5 }}>
             <View style={{ backgroundColor: bucketCfg.bg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
-              <Text style={{ fontSize: 10, fontWeight: "700", color: bucketCfg.text }}>{bucketCfg.label}</Text>
+              <Text style={{ fontSize: 10, fontWeight: "800", color: bucketCfg.text }}>{bucketCfg.label}</Text>
             </View>
+            {task.dueDate && (
+              <Text style={{ fontSize: 11, color: C.textMuted }}>{formatShortDate(task.dueDate)}</Text>
+            )}
+          </View>
+          <Text style={{ fontSize: 14, fontWeight: "600", color: C.text, lineHeight: 19, marginBottom: 4 }}>{task.title}</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 5, alignItems: "center" }}>
             <View className={`px-2 py-0.5 rounded-full ${catBg}`}>
               <Text className={`text-xs font-semibold ${catTxt}`}>{task.category}</Text>
             </View>
-            {task.dueDate && <Text style={{ fontSize: 11, color: C.textMuted }}>{formatShortDate(task.dueDate)}</Text>}
+            {task.category === "School" && task.subCategory ? (
+              <View style={{ backgroundColor: C.accentBg, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10 }}>
+                <Text style={{ fontSize: 10, fontWeight: "700", color: C.accentText }}>🎓 {task.subCategory}</Text>
+              </View>
+            ) : null}
           </View>
         </View>
-        <Ionicons name="chevron-forward" size={14} color={C.border} style={{ marginTop: 3, marginLeft: 8 }} />
+        <Ionicons name="chevron-forward" size={14} color={C.borderStrong} style={{ marginTop: 4, marginLeft: 8 }} />
       </View>
     </TouchableOpacity>
   );
