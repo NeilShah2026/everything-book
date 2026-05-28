@@ -200,6 +200,25 @@ function FormCard({ isDesktop }: { isDesktop: boolean }) {
     setConfirmPassword("");
   }
 
+  async function handleGoogleSignIn() {
+    setError(null);
+    setLoading(true);
+    try {
+      const redirectTo = Platform.OS === "web" && typeof window !== "undefined"
+        ? window.location.origin
+        : "everythingbook://";
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo },
+      });
+      if (error) throw error;
+      // browser auto-redirects on success — no further state needed
+    } catch (e: any) {
+      setError(e.message ?? "Google sign-in failed. Please try again.");
+      setLoading(false);
+    }
+  }
+
   async function handleSubmit() {
     setError(null);
     setSuccessMsg(null);
@@ -296,6 +315,33 @@ function FormCard({ isDesktop }: { isDesktop: boolean }) {
             </Text>
           </TouchableOpacity>
         ))}
+      </View>
+
+      {/* Google sign-in */}
+      <TouchableOpacity
+        onPress={handleGoogleSignIn}
+        disabled={loading}
+        style={[{
+          flexDirection: "row", alignItems: "center", justifyContent: "center",
+          gap: 10, backgroundColor: "#fff",
+          borderWidth: 1, borderColor: "#e5e7eb",
+          paddingVertical: isDesktop ? 14 : 13, borderRadius: 14,
+          marginBottom: 4, opacity: loading ? 0.65 : 1,
+        }, sh("0 1px 6px rgba(0,0,0,0.06)")]}
+      >
+        <GoogleIcon />
+        <Text style={{ fontFamily: FF.body, fontSize: 14, fontWeight: "600", color: "#374151" }}>
+          Continue with Google
+        </Text>
+      </TouchableOpacity>
+
+      {/* Divider */}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginVertical: 4 }}>
+        <View style={{ flex: 1, height: 1, backgroundColor: "#f0ede8" }} />
+        <Text style={{ fontFamily: FF.body, fontSize: 11, color: "#a8a29e", fontWeight: "600" }}>
+          or continue with email
+        </Text>
+        <View style={{ flex: 1, height: 1, backgroundColor: "#f0ede8" }} />
       </View>
 
       {/* Fields */}
@@ -424,6 +470,24 @@ function FormCard({ isDesktop }: { isDesktop: boolean }) {
           )}
         </TouchableOpacity>
       </View>
+    </View>
+  );
+}
+
+// ─── Google icon (colored "G" — no extra deps) ────────────────────────────────
+function GoogleIcon() {
+  return (
+    <View style={{
+      width: 20, height: 20, borderRadius: 10,
+      backgroundColor: "#f1f3f4", borderWidth: 1, borderColor: "#dadce0",
+      alignItems: "center", justifyContent: "center",
+    }}>
+      <Text style={{
+        fontSize: 12, fontWeight: "800", color: "#4285F4",
+        fontFamily: Platform.select({ web: "Georgia, serif", default: undefined }),
+      }}>
+        G
+      </Text>
     </View>
   );
 }

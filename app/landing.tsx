@@ -161,15 +161,18 @@ export default function LandingPage() {
         ]}>
 
           {/* Logo */}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
             <View style={[{
               width: 32, height: 32, borderRadius: 9,
               backgroundColor: C.accentBg, borderWidth: 1, borderColor: C.borderHi,
-              alignItems: "center", justifyContent: "center",
+              alignItems: "center", justifyContent: "center", flexShrink: 0,
             }, sh("0 0 12px rgba(99,102,241,0.3)")]}>
               <Text style={{ fontSize: 16 }}>📖</Text>
             </View>
-            <Text style={{ fontFamily: FF.display, fontSize: 17, fontWeight: "800", color: C.text, letterSpacing: -0.3 }}>
+            <Text
+              numberOfLines={1}
+              style={{ fontFamily: FF.display, fontSize: 17, fontWeight: "800", color: C.text, letterSpacing: -0.3, flexShrink: 1 }}
+            >
               EverythingBook
             </Text>
           </View>
@@ -198,26 +201,29 @@ export default function LandingPage() {
             </View>
           )}
 
-          {/* CTA actions */}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <TouchableOpacity onPress={goAuth} style={{ paddingHorizontal: 14, paddingVertical: 8 }}>
-              <Text
-                className="link-hover"
-                style={{ fontFamily: FF.body, fontSize: 13, fontWeight: "600", color: C.textSec }}
-              >
-                Log in
-              </Text>
-            </TouchableOpacity>
+          {/* CTA actions — simplified on narrow mobile to prevent overflow */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 }}>
+            {width >= 440 && (
+              <TouchableOpacity onPress={goAuth} style={{ paddingHorizontal: 12, paddingVertical: 8 }}>
+                <Text
+                  className="link-hover"
+                  style={{ fontFamily: FF.body, fontSize: 13, fontWeight: "600", color: C.textSec }}
+                >
+                  Log in
+                </Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               onPress={goAuth}
               className="btn-lift"
               style={[{
-                paddingHorizontal: 18, paddingVertical: 9, borderRadius: 22,
+                paddingHorizontal: width < 440 ? 14 : 18,
+                paddingVertical: 9, borderRadius: 22,
                 borderWidth: 1, borderColor: C.accent, backgroundColor: C.accentBg,
               }, sh("0 0 16px rgba(99,102,241,0.2)")]}
             >
               <Text style={{ fontFamily: FF.body, fontSize: 13, fontWeight: "700", color: C.accentHi }}>
-                Get started free
+                {width < 440 ? "Sign in" : "Get started free"}
               </Text>
             </TouchableOpacity>
           </View>
