@@ -37,6 +37,16 @@ export function formatDisplayDate(iso: string): string {
   });
 }
 
+/** "YYYY-MM-DD" → "Wed, May 27" (compact nav bar date) */
+export function formatCompactDate(iso: string): string {
+  const [y, m, day] = iso.split("-").map(Number);
+  return new Date(y, m - 1, day).toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 /** "YYYY-MM-DD" → "May 26" */
 export function formatShortDate(iso: string): string {
   const [y, m, day] = iso.split("-").map(Number);

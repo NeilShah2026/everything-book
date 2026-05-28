@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Redirect, Tabs, usePathname, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Platform, View, Text, TouchableOpacity, useWindowDimensions } from "react-native";
@@ -25,9 +25,9 @@ const NAV_ITEMS: {
 
 // ── Desktop sidebar ────────────────────────────
 function SidebarNav() {
-  const router    = useRouter();
-  const pathname  = usePathname();
-  const { session, signOut } = useAuth();
+  const router   = useRouter();
+  const pathname = usePathname();
+  const { session } = useAuth();
   const { colors } = useTheme();
 
   function isActive(name: string) {
@@ -40,9 +40,14 @@ function SidebarNav() {
     else router.navigate(`/${name}` as never);
   }
 
-  // Email initials avatar
-  const email    = session?.user?.email ?? "";
-  const initials = email.slice(0, 2).toUpperCase();
+  const userMeta   = session?.user?.user_metadata;
+  const fullName   = (userMeta?.full_name as string | undefined) ?? "";
+  const email      = session?.user?.email ?? "";
+  const displayName = fullName || email;
+  const firstName  = fullName.split(" ")[0] || email;
+  const initials   = fullName
+    ? fullName.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()
+    : email.slice(0, 2).toUpperCase();
 
   const c = colors;
   return (
@@ -89,7 +94,10 @@ function SidebarNav() {
           );
         })}
 
-        {/* Settings link in sidebar */}
+        {/* Spacer — pushes Settings + user to bottom */}
+        <View style={{ flex: 1 }} />
+
+        {/* Settings — pinned at bottom of nav list */}
         <TouchableOpacity
           onPress={() => router.push("/settings")}
           activeOpacity={0.7}
@@ -97,35 +105,47 @@ function SidebarNav() {
             flexDirection: "row", alignItems: "center", gap: 11,
             paddingHorizontal: 12, paddingVertical: 11, borderRadius: 14,
             backgroundColor: pathname === "/settings" ? c.accentBg : "transparent",
-            marginTop: 8,
           }}
         >
-          <Ionicons name="settings-outline" size={20} color={pathname === "/settings" ? c.accent : c.textMuted} />
+          <Ionicons
+            name={pathname === "/settings" ? "settings" : "settings-outline"}
+            size={20}
+            color={pathname === "/settings" ? c.accent : c.textMuted}
+          />
           <Text style={{ fontSize: 14, fontWeight: "500", color: pathname === "/settings" ? c.accentText : c.textSec }}>
             Settings
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* User + sign-out (bottom of sidebar) */}
-      <View style={{ borderTopWidth: 1, borderTopColor: c.border, paddingTop: 16, gap: 10 }}>
-        {email ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 8 }}>
-            <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: c.accentBg, alignItems: "center", justifyContent: "center" }}>
-              <Text style={{ fontSize: 12, fontWeight: "800", color: c.accent }}>{initials}</Text>
-            </View>
-            <Text style={{ flex: 1, fontSize: 12, color: c.textSec, fontWeight: "500" }} numberOfLines={1}>{email}</Text>
-          </View>
-        ) : null}
-        <TouchableOpacity
-          onPress={signOut}
-          activeOpacity={0.7}
-          style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 14, backgroundColor: "#fef2f2" }}
-        >
-          <Ionicons name="log-out-outline" size={18} color="#ef4444" />
-          <Text style={{ fontSize: 14, fontWeight: "600", color: "#ef4444" }}>Sign Out</Text>
-        </TouchableOpacity>
-      </View>
+      {/* User info only — sign-out lives in Settings */}
+      <TouchableOpacity
+        onPress={() => router.push("/settings")}
+        activeOpacity={0.8}
+        style={{
+          borderTopWidth: 1, borderTopColor: c.border,
+          paddingTop: 14, marginTop: 8,
+          flexDirection: "row", alignItems: "center", gap: 10,
+          paddingHorizontal: 8,
+        }}
+      >
+        <View style={{
+          width: 34, height: 34, borderRadius: 17,
+          backgroundColor: c.accentBg, alignItems: "center", justifyContent: "center",
+          flexShrink: 0,
+        }}>
+          <Text style={{ fontSize: 12, fontWeight: "800", color: c.accent }}>{initials}</Text>
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={{ fontSize: 13, fontWeight: "700", color: c.text }} numberOfLines={1}>
+            {firstName}
+          </Text>
+          <Text style={{ fontSize: 11, color: c.textMuted, marginTop: 1 }} numberOfLines={1}>
+            {email}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={14} color={c.border} />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -193,10 +213,23 @@ function MobileTabBar({ state, navigation }: TabBarFnProps) {
 export default function TabsLayout() {
   const { session, loading } = useAuth();
   const { width } = useWindowDimensions();
+  const router = useRouter();
   const isDesktop  = Platform.OS === "web" && width >= BREAKPOINT;
 
-  // Not authenticated → redirect to auth screens
-  if (!loading && !session) return <Redirect href="/(auth)" />;
+  // Imperative redirect as primary mechanism (more reliable in expo-router v4)
+  useEffect(() => {
+    if (loading) return;
+    if (!session) {
+      if (Platform.OS === "web") {
+        router.replace("/landing" as any);
+      } else {
+        router.replace("/(auth)" as any);
+      }
+    }
+  }, [loading, session]);
+
+  // Prevent rendering tabs UI while unauthenticated
+  if (!loading && !session) return null;
 
   return (
     <View style={{ flex: 1, flexDirection: isDesktop ? "row" : "column" }}>

@@ -1,7 +1,7 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import {
   View, Text, TouchableOpacity, TextInput, Modal,
-  ScrollView, Platform, FlatList,
+  ScrollView, Platform, FlatList, Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -28,7 +28,6 @@ const CAT_TEXT: Record<string, string> = {
   Home: "text-emerald-700",  Health: "text-rose-700",
 };
 
-// ── Archive Entry type ─────────────────────────
 type ArchiveEntry = {
   date: string;
   sheet: DailySheet | null;
@@ -39,9 +38,27 @@ type ArchiveEntry = {
 // ─────────────────────────────────────────────
 export default function ArchiveScreen() {
   const { colors: C } = useTheme();
-  const [entries, setEntries] = useState<ArchiveEntry[]>([]);
-  const [search, setSearch] = useState("");
+  const [entries, setEntries]   = useState<ArchiveEntry[]>([]);
+  const [search, setSearch]     = useState("");
   const [selected, setSelected] = useState<ArchiveEntry | null>(null);
+
+  // ── Collapsing header animation ───────────────
+  const compactOpacity = useRef(new Animated.Value(0)).current;
+  const borderOpacity  = useRef(new Animated.Value(0)).current;
+
+  function handleScroll(e: any) {
+    const y = e.nativeEvent.contentOffset.y;
+    Animated.timing(compactOpacity, {
+      toValue: y > 80 ? 1 : 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+    Animated.timing(borderOpacity, {
+      toValue: y > 8 ? 1 : 0,
+      duration: 100,
+      useNativeDriver: true,
+    }).start();
+  }
 
   useFocusEffect(useCallback(() => { load(); }, []));
 
@@ -108,10 +125,8 @@ export default function ArchiveScreen() {
         style={{ backgroundColor: C.card, borderRadius: 20, marginHorizontal: 16, marginBottom: 10, overflow: "hidden", ...SHADOW }}
       >
         <View style={{ flexDirection: "row" }}>
-          {/* Left accent stripe */}
           <View style={{ width: 4, backgroundColor: entry.isToday ? "#f59e0b" : C.accent }} />
           <View style={{ flex: 1, padding: 14 }}>
-            {/* Date row */}
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <View>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -128,7 +143,6 @@ export default function ArchiveScreen() {
               <Ionicons name="chevron-forward" size={16} color={C.border} />
             </View>
 
-            {/* Stats */}
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: preview ? 8 : 0 }}>
               {entry.completedTasks.length > 0 && (
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#f0fdf4", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
@@ -165,7 +179,6 @@ export default function ArchiveScreen() {
               )}
             </View>
 
-            {/* Preview text */}
             {preview && (
               <Text style={{ fontSize: 12, color: C.textMuted, lineHeight: 17 }} numberOfLines={1}>
                 "{preview}"
@@ -177,38 +190,53 @@ export default function ArchiveScreen() {
     );
   }
 
-  return (
-    <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: C.bg }}>
-      {/* ── Header ── */}
-      <View style={{ backgroundColor: C.headerBg, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, ...SHADOW }}>
-        <Text style={{ fontSize: 26, fontWeight: "800", color: C.text, letterSpacing: -0.5, marginBottom: 14 }}>
-          Archive
-        </Text>
-        <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: C.inputBg, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 10, gap: 8 }}>
-          <Ionicons name="search-outline" size={16} color={C.textMuted} />
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search past notes, tasks..."
-            placeholderTextColor={C.textMuted}
-            style={{ flex: 1, fontSize: 14, color: C.text }}
-          />
-          {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch("")}>
-              <Ionicons name="close-circle" size={16} color={C.textMuted} />
-            </TouchableOpacity>
-          )}
-        </View>
+  // Scrollable list header (search)
+  const ListHeader = (
+    <View>
+      {/* Search bar */}
+      <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: C.inputBg, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 10, gap: 8, marginHorizontal: 16, marginTop: 12, marginBottom: 12 }}>
+        <Ionicons name="search-outline" size={16} color={C.textMuted} />
+        <TextInput
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search past notes, tasks..."
+          placeholderTextColor={C.textMuted}
+          style={{ flex: 1, fontSize: 14, color: C.text }}
+        />
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => setSearch("")}>
+            <Ionicons name="close-circle" size={16} color={C.textMuted} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Count */}
       {displayed.length > 0 && (
-        <View style={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 }}>
+        <View style={{ paddingHorizontal: 20, paddingBottom: 4 }}>
           <Text style={{ fontSize: 12, color: C.textMuted, fontWeight: "600" }}>
             {displayed.length} day{displayed.length !== 1 ? "s" : ""} recorded
           </Text>
         </View>
       )}
+    </View>
+  );
+
+  return (
+    <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: C.bg }}>
+
+      {/* ── Compact nav bar — title always visible ── */}
+      <View style={{
+        height: 52,
+        flexDirection: "row", alignItems: "center",
+        paddingHorizontal: 20,
+        backgroundColor: C.bg,
+      }}>
+        <Text style={{ flex: 1, fontSize: 17, fontWeight: "800", color: C.text, letterSpacing: -0.3 }}>Archive</Text>
+        <Ionicons name="folder-outline" size={20} color={C.textMuted} />
+      </View>
+
+      {/* Separator — fades in on scroll */}
+      <Animated.View style={{ height: 1, backgroundColor: C.borderStrong, opacity: borderOpacity }} />
 
       {/* List */}
       <FlatList
@@ -216,9 +244,12 @@ export default function ArchiveScreen() {
         keyExtractor={(item) => item.date}
         renderItem={renderItem}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingTop: 12, paddingBottom: 32 }}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        ListHeaderComponent={ListHeader}
+        contentContainerStyle={{ paddingTop: 2, paddingBottom: 32 }}
         ListEmptyComponent={
-          <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 80, paddingHorizontal: 32 }}>
+          <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 60, paddingHorizontal: 32 }}>
             <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: C.surface, alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
               <Ionicons name="folder-open-outline" size={36} color={C.border} />
             </View>
@@ -232,7 +263,6 @@ export default function ArchiveScreen() {
         }
       />
 
-      {/* Day detail modal */}
       <DayDetailModal entry={selected} onClose={() => setSelected(null)} />
     </SafeAreaView>
   );
@@ -255,7 +285,7 @@ function DayDetailModal({ entry, onClose }: { entry: ArchiveEntry | null; onClos
     >
       <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
         {/* Header */}
-        <View style={{ backgroundColor: C.headerBg, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14, ...SHADOW }}>
+        <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: C.border }}>
           <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
             <View style={{ flex: 1, paddingRight: 12 }}>
               {isToday && (
@@ -281,7 +311,6 @@ function DayDetailModal({ entry, onClose }: { entry: ArchiveEntry | null; onClos
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 40 }}
         >
-          {/* ── Completed Tasks ── */}
           {completedTasks.length > 0 && (
             <DetailCard title="Completed Tasks" icon="checkmark-circle-outline" iconColor="#22c55e" accentColor="#f0fdf4">
               {completedTasks.map((task, i) => {
@@ -321,7 +350,6 @@ function DayDetailModal({ entry, onClose }: { entry: ArchiveEntry | null; onClos
             </DetailCard>
           )}
 
-          {/* ── Quick Notes ── */}
           {sheet?.quickNotes && sheet.quickNotes.length > 0 && (
             <DetailCard title="Notes" icon="document-text-outline" iconColor={C.accent} accentColor={C.accentBg}>
               {sheet.quickNotes.map((note, i) => (
@@ -336,7 +364,6 @@ function DayDetailModal({ entry, onClose }: { entry: ArchiveEntry | null; onClos
             </DetailCard>
           )}
 
-          {/* ── Random Thoughts (legacy data) ── */}
           {sheet?.randomThoughts && sheet.randomThoughts.length > 0 && (
             <DetailCard title="Random Thoughts" icon="bulb-outline" iconColor="#f59e0b" accentColor="#fffbeb">
               {sheet.randomThoughts.map((thought, i) => (
@@ -351,14 +378,12 @@ function DayDetailModal({ entry, onClose }: { entry: ArchiveEntry | null; onClos
             </DetailCard>
           )}
 
-          {/* ── Reflection ── */}
           {sheet?.reflection ? (
             <DetailCard title="Reflection" icon="moon-outline" iconColor="#a78bfa" accentColor="#faf5ff">
               <Text style={{ fontSize: 14, color: C.text, lineHeight: 22, paddingVertical: 6 }}>{sheet.reflection}</Text>
             </DetailCard>
           ) : null}
 
-          {/* Empty state */}
           {completedTasks.length === 0 && !sheet?.quickNotes?.length && !sheet?.randomThoughts?.length && !sheet?.reflection && (
             <View style={{ alignItems: "center", paddingVertical: 48 }}>
               <Text style={{ fontSize: 14, color: C.border }}>Nothing was recorded this day</Text>

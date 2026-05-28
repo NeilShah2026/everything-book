@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from "react";
-import { View, Text, ScrollView, TouchableOpacity, Platform } from "react-native";
+import React, { useState, useCallback, useRef } from "react";
+import { View, Text, ScrollView, TouchableOpacity, Platform, Animated } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
@@ -32,7 +32,6 @@ const CAT_TEXT: Record<string, string> = {
   Home: "text-emerald-700",  Health: "text-rose-700",
 };
 
-// ── Bucket config (accent colors stay fixed — they're semantic) ──
 const BUCKET_CFG: Record<
   TaskBucket,
   { emoji: string; label: string; headerBg: string; headerText: string; countBg: string; countText: string; stripColor: string }
@@ -72,11 +71,28 @@ export default function PlannerScreen() {
   const [groups, setGroups] = useState<Record<TaskBucket, Task[]>>({
     Today: [], Tomorrow: [], "This Week": [], Later: [],
   });
-  const [showAdd, setShowAdd] = useState(false);
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [showAdd, setShowAdd]         = useState(false);
+  const [collapsed, setCollapsed]     = useState<Record<string, boolean>>({});
+  const [selectedTask, setSelectedTask]   = useState<Task | null>(null);
   const [detailVisible, setDetailVisible] = useState(false);
+
+  // ── Collapsing header animation ───────────────
+  const compactOpacity = useRef(new Animated.Value(0)).current;
+  const borderOpacity  = useRef(new Animated.Value(0)).current;
+
+  function handleScroll(e: any) {
+    const y = e.nativeEvent.contentOffset.y;
+    Animated.timing(compactOpacity, {
+      toValue: y > 70 ? 1 : 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+    Animated.timing(borderOpacity, {
+      toValue: y > 8 ? 1 : 0,
+      duration: 100,
+      useNativeDriver: true,
+    }).start();
+  }
 
   useFocusEffect(useCallback(() => { load(); }, []));
 
@@ -99,77 +115,91 @@ export default function PlannerScreen() {
 
   return (
     <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: C.bg }}>
-      {/* ── Header ── */}
-      <View style={{ backgroundColor: C.headerBg, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, ...SHADOW }}>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-          <View>
-            <Text style={{ fontSize: 26, fontWeight: "800", color: C.text, letterSpacing: -0.5 }}>Planner</Text>
-            <Text style={{ fontSize: 13, color: C.textMuted, marginTop: 2 }}>
-              {totalActive === 0 ? "All clear 🎉" : `${totalActive} active task${totalActive !== 1 ? "s" : ""}`}
-            </Text>
-          </View>
-          <TouchableOpacity
-            onPress={() => setShowAdd(true)}
-            style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: C.accent, alignItems: "center", justifyContent: "center", ...SHADOW }}
-          >
-            <Ionicons name="add" size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
+
+      {/* ── Compact nav bar — title always visible ── */}
+      <View style={{
+        height: 52,
+        flexDirection: "row", alignItems: "center",
+        paddingHorizontal: 20,
+        backgroundColor: C.bg,
+      }}>
+        <Text style={{ flex: 1, fontSize: 17, fontWeight: "800", color: C.text, letterSpacing: -0.3 }}>Planner</Text>
+        <TouchableOpacity
+          onPress={() => setShowAdd(true)}
+          style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: C.accent, alignItems: "center", justifyContent: "center" }}
+        >
+          <Ionicons name="add" size={22} color="#fff" />
+        </TouchableOpacity>
       </View>
+
+      {/* Separator — fades in on scroll */}
+      <Animated.View style={{ height: 1, backgroundColor: C.borderStrong, opacity: borderOpacity }} />
 
       <ScrollView
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 32 }}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        contentContainerStyle={{ paddingBottom: 32 }}
       >
-        {BUCKET_ORDER.map((bucket) => {
-          const bucketTasks = groups[bucket];
-          const cfg = BUCKET_CFG[bucket];
-          const isCollapsed = collapsed[bucket];
-          const activeTasks = bucketTasks.filter((t) => t.status !== "Done");
-          const doneTasks   = bucketTasks.filter((t) => t.status === "Done");
+        {/* Subtitle */}
+        <View style={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: 14 }}>
+          <Text style={{ fontSize: 13, color: C.textMuted }}>
+            {totalActive === 0 ? "All clear 🎉" : `${totalActive} active task${totalActive !== 1 ? "s" : ""}`}
+          </Text>
+        </View>
 
-          return (
-            <View key={bucket} style={{ backgroundColor: C.card, borderRadius: 24, overflow: "hidden", ...SHADOW }}>
-              {/* Bucket header */}
-              <TouchableOpacity
-                onPress={() => toggleCollapse(bucket)}
-                activeOpacity={0.7}
-                style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14, backgroundColor: cfg.headerBg, gap: 10 }}
-              >
-                <Text style={{ fontSize: 20 }}>{cfg.emoji}</Text>
-                <Text style={{ fontSize: 15, fontWeight: "800", color: cfg.headerText, flex: 1 }}>{cfg.label}</Text>
-                <View style={{ backgroundColor: cfg.countBg, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 12 }}>
-                  <Text style={{ fontSize: 12, fontWeight: "800", color: cfg.countText }}>{bucketTasks.length}</Text>
-                </View>
-                <Ionicons name={isCollapsed ? "chevron-down" : "chevron-up"} size={16} color={cfg.headerText} />
-              </TouchableOpacity>
+        {/* ── Bucket cards ── */}
+        <View style={{ paddingHorizontal: 16, gap: 12 }}>
+          {BUCKET_ORDER.map((bucket) => {
+            const bucketTasks = groups[bucket];
+            const cfg         = BUCKET_CFG[bucket];
+            const isCollapsed = collapsed[bucket];
+            const activeTasks = bucketTasks.filter((t) => t.status !== "Done");
+            const doneTasks   = bucketTasks.filter((t) => t.status === "Done");
 
-              {/* Tasks */}
-              {!isCollapsed && (
-                <View style={{ paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12, gap: 8 }}>
-                  {bucketTasks.length === 0 ? (
-                    <TouchableOpacity
-                      onPress={() => setShowAdd(true)}
-                      style={{ paddingVertical: 16, alignItems: "center", borderRadius: 16, borderWidth: 1.5, borderColor: C.border, borderStyle: "dashed" }}
-                    >
-                      <Text style={{ fontSize: 13, color: C.border }}>Nothing here yet</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <>
-                      {activeTasks.map((task) => (
-                        <BucketTaskCard key={task.id} task={task} bucketStripColor={cfg.stripColor} onPress={() => openDetail(task)} />
-                      ))}
-                      {doneTasks.map((task) => (
-                        <BucketTaskCard key={task.id} task={task} bucketStripColor={C.borderStrong} onPress={() => openDetail(task)} isDimmed />
-                      ))}
-                    </>
-                  )}
-                </View>
-              )}
-            </View>
-          );
-        })}
+            return (
+              <View key={bucket} style={{ backgroundColor: C.card, borderRadius: 24, overflow: "hidden", ...SHADOW }}>
+                {/* Bucket header */}
+                <TouchableOpacity
+                  onPress={() => toggleCollapse(bucket)}
+                  activeOpacity={0.7}
+                  style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14, backgroundColor: cfg.headerBg, gap: 10 }}
+                >
+                  <Text style={{ fontSize: 20 }}>{cfg.emoji}</Text>
+                  <Text style={{ fontSize: 15, fontWeight: "800", color: cfg.headerText, flex: 1 }}>{cfg.label}</Text>
+                  <View style={{ backgroundColor: cfg.countBg, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 12 }}>
+                    <Text style={{ fontSize: 12, fontWeight: "800", color: cfg.countText }}>{bucketTasks.length}</Text>
+                  </View>
+                  <Ionicons name={isCollapsed ? "chevron-down" : "chevron-up"} size={16} color={cfg.headerText} />
+                </TouchableOpacity>
+
+                {/* Tasks */}
+                {!isCollapsed && (
+                  <View style={{ paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12, gap: 8 }}>
+                    {bucketTasks.length === 0 ? (
+                      <TouchableOpacity
+                        onPress={() => setShowAdd(true)}
+                        style={{ paddingVertical: 16, alignItems: "center", borderRadius: 16, borderWidth: 1.5, borderColor: C.border, borderStyle: "dashed" }}
+                      >
+                        <Text style={{ fontSize: 13, color: C.border }}>Nothing here yet</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <>
+                        {activeTasks.map((task) => (
+                          <BucketTaskCard key={task.id} task={task} bucketStripColor={cfg.stripColor} onPress={() => openDetail(task)} />
+                        ))}
+                        {doneTasks.map((task) => (
+                          <BucketTaskCard key={task.id} task={task} bucketStripColor={C.borderStrong} onPress={() => openDetail(task)} isDimmed />
+                        ))}
+                      </>
+                    )}
+                  </View>
+                )}
+              </View>
+            );
+          })}
+        </View>
       </ScrollView>
 
       <AddTaskModal
@@ -198,10 +228,10 @@ function BucketTaskCard({
   task: Task; bucketStripColor: string; onPress: () => void; isDimmed?: boolean;
 }) {
   const { colors: C } = useTheme();
-  const isDone  = task.status === "Done";
-  const overdue = task.dueDate && isOverdue(task.dueDate) && !isDone;
-  const catBg   = CAT_BG[task.category]  ?? "bg-gray-100";
-  const catTxt  = CAT_TEXT[task.category] ?? "text-gray-600";
+  const isDone   = task.status === "Done";
+  const overdue  = task.dueDate && isOverdue(task.dueDate) && !isDone;
+  const catBg    = CAT_BG[task.category]  ?? "bg-gray-100";
+  const catTxt   = CAT_TEXT[task.category] ?? "text-gray-600";
   const stripColor = !isDone ? (CAT_STRIP[task.category] ?? bucketStripColor) : C.borderStrong;
 
   return (
@@ -215,7 +245,6 @@ function BucketTaskCard({
     >
       <View style={{ width: 3, backgroundColor: stripColor }} />
       <View style={{ flex: 1, paddingHorizontal: 12, paddingVertical: 10, flexDirection: "row", alignItems: "center" }}>
-        {/* Done checkmark */}
         <View
           style={{
             width: 20, height: 20, borderRadius: 10, borderWidth: 2,

@@ -1,7 +1,7 @@
 /**
  * planner.ts
- * Rule-based bucket assignment for tasks.
- * No AI — just deadline + priority logic.
+ * Pure date-based bucket assignment for tasks.
+ * Bucket is determined entirely by due date, not priority.
  */
 
 import { Task, TaskBucket } from "../types";
@@ -22,28 +22,26 @@ function daysBetween(from: Date, to: Date): number {
 }
 
 /**
- * Returns the suggested bucket for a single task based on
- * due date, priority, and today's date.
+ * Returns the bucket for a task based solely on its due date:
+ *   overdue / due today  → Today
+ *   due tomorrow         → Tomorrow
+ *   due in 2–7 days      → This Week
+ *   due 8+ days away     → Later
+ *   no due date          → Later
  */
 export function assignBucket(task: Task, todayArg?: Date): TaskBucket {
-  // Build a local-midnight "today" without mutating any passed Date
   const now = todayArg ?? new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  // No due date → Later (unless high priority)
-  if (!task.dueDate) {
-    return task.priority === "High" ? "Today" : "Later";
-  }
+  if (!task.dueDate) return "Later";
 
   const due = parseDateLocal(task.dueDate);
   const diff = daysBetween(today, due); // negative = overdue
 
-  if (diff <= 0) return "Today";                                       // overdue or due today
-  if (diff === 1) return "Tomorrow";                                    // due tomorrow
-  if (diff <= 2 && task.priority === "High") return "Today";           // high priority, due in 2 days
-  if (diff <= 3 && (task.priority === "High" || task.priority === "Medium")) return "Tomorrow";
-  if (diff <= 7) return "This Week";
-  return "Later";
+  if (diff <= 0) return "Today";     // overdue or due today
+  if (diff === 1) return "Tomorrow"; // due tomorrow
+  if (diff <= 7) return "This Week"; // due in 2–7 days
+  return "Later";                    // due 8+ days out
 }
 
 /**

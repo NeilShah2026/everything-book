@@ -28,6 +28,7 @@ function RootNavigation() {
         contentStyle: { backgroundColor: colors.bg },
       }}
     >
+      <Stack.Screen name="landing" options={{ headerShown: false }} />
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen

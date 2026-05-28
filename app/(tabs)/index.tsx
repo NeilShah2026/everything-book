@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Modal,
+  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -25,6 +26,7 @@ import {
   generateId,
   todayISO,
   formatDisplayDate,
+  formatCompactDate,
   parseFastInput,
   formatShortDate,
 } from "../../lib/utils";
@@ -34,20 +36,22 @@ import { useTheme } from "../../context/ThemeContext";
 import AddTaskModal from "../../components/AddTaskModal";
 import TaskDetailSheet from "../../components/TaskDetailSheet";
 
-// ── Design tokens (static — don't depend on theme) ─────────
+// ── Design tokens ───────────────────────────────
 const SHADOW = Platform.select({
   ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 10 },
   android: { elevation: 3 },
   default: {},
 });
+const SHADOW_UP = Platform.select({
+  ios: { shadowColor: "#000", shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.05, shadowRadius: 8 },
+  android: { elevation: 8 },
+  default: {},
+});
 
-// Category → left-strip color (replaces priority strips)
 const CAT_STRIP: Record<string, string> = {
   School: "#7c3aed", Work: "#0284c7",
   Home: "#059669",   Health: "#e11d48",
 };
-
-// Category chips
 const CAT_BG: Record<string, string> = {
   School: "bg-violet-100", Work: "bg-sky-100",
   Home: "bg-emerald-100", Health: "bg-rose-100",
@@ -71,28 +75,55 @@ export default function TodayScreen() {
   const greeting = getGreeting();
   const router   = useRouter();
   const { session } = useAuth();
-  const { colors }  = useTheme();
+  const { colors: C } = useTheme();
 
-  const userMeta   = session?.user?.user_metadata;
+  const userMeta    = session?.user?.user_metadata;
   const displayName = (userMeta?.full_name as string | undefined)?.split(" ")[0] ?? "";
-  const email      = session?.user?.email ?? "";
-  const initials   = displayName ? displayName.charAt(0).toUpperCase() : email.slice(0, 2).toUpperCase();
+  const email       = session?.user?.email ?? "";
+  const initials    = displayName ? displayName.charAt(0).toUpperCase() : email.slice(0, 2).toUpperCase();
 
-  const [sheet, setSheet] = useState<DailySheet | null>(null);
-  const [todayTasks, setTodayTasks] = useState<Task[]>([]);
+  const [sheet, setSheet]             = useState<DailySheet | null>(null);
+  const [todayTasks, setTodayTasks]   = useState<Task[]>([]);
   const [upcomingTasks, setUpcomingTasks] = useState<Task[]>([]);
-  const [allTasks, setAllTasks] = useState<Task[]>([]);
+  const [allTasks, setAllTasks]       = useState<Task[]>([]);
 
-  const [fastInput, setFastInput] = useState("");
+  const [fastInput, setFastInput]     = useState("");
   const [showAddTask, setShowAddTask] = useState(false);
-  const [editTask, setEditTask] = useState<Partial<Task> | undefined>(undefined);
+  const [editTask, setEditTask]       = useState<Partial<Task> | undefined>(undefined);
 
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [selectedTask, setSelectedTask]   = useState<Task | null>(null);
   const [detailVisible, setDetailVisible] = useState(false);
 
   const [showRollover, setShowRollover] = useState(false);
-  const [noteInput, setNoteInput] = useState("");
-  const [addingNote, setAddingNote] = useState(false);
+  const [noteInput, setNoteInput]       = useState("");
+  const [addingNote, setAddingNote]     = useState(false);
+
+  // ── Collapsing header animation ───────────────
+  // greetingOpacity: starts 1 (visible), fades out as you scroll
+  // dateOpacity:     starts 0 (hidden),  fades in  as you scroll
+  const greetingOpacity = useRef(new Animated.Value(1)).current;
+  const dateOpacity     = useRef(new Animated.Value(0)).current;
+  const borderOpacity   = useRef(new Animated.Value(0)).current;
+
+  function handleScroll(e: any) {
+    const y = e.nativeEvent.contentOffset.y;
+    // Greeting fades out 0→50, date fades in 30→80
+    Animated.timing(greetingOpacity, {
+      toValue: y > 50 ? 0 : 1,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+    Animated.timing(dateOpacity, {
+      toValue: y > 60 ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+    Animated.timing(borderOpacity, {
+      toValue: y > 8 ? 1 : 0,
+      duration: 120,
+      useNativeDriver: true,
+    }).start();
+  }
 
   useFocusEffect(useCallback(() => { load(); }, []));
 
@@ -152,7 +183,6 @@ export default function TodayScreen() {
   function openDetail(task: Task) { setSelectedTask(task); setDetailVisible(true); }
   function handleTaskUpdated() { load(); }
   function handleTaskDeleted() { load(); }
-
   async function handleSaveTask(task: Task) { await saveTask(task); await load(); }
 
   async function handleFastInput() {
@@ -175,59 +205,91 @@ export default function TodayScreen() {
     await load(); setShowRollover(false);
   }
 
-  const unfinished  = allTasks.filter((t) => t.status !== "Done" && assignBucket(t) === "Today");
+  const unfinished   = allTasks.filter((t) => t.status !== "Done" && assignBucket(t) === "Today");
   const overdueCount = todayTasks.filter((t) => t.dueDate && t.dueDate < today).length;
 
-  // Shorthand color aliases
-  const C = colors;
+  // Full greeting string for compact bar
+  const greetingFull = `${greeting.emoji} ${greeting.text}${displayName ? `, ${displayName}` : ""}`;
 
   // ─────────────────────────────────────────
   return (
     <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: C.bg }}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+
+        {/* ── Compact nav bar ── */}
+        <View style={{
+          height: 52,
+          flexDirection: "row",
+          alignItems: "center",
+          paddingHorizontal: 20,
+          backgroundColor: C.bg,
+        }}>
+          {/* Left: greeting fades out, date fades in — both overlay the same space */}
+          <View style={{ flex: 1, height: 52, justifyContent: "center" }}>
+            <Animated.Text
+              numberOfLines={1}
+              style={{
+                position: "absolute", left: 0, right: 0,
+                fontSize: 15, fontWeight: "700", color: C.text,
+                opacity: greetingOpacity,
+              }}
+            >
+              {greetingFull}
+            </Animated.Text>
+            <Animated.Text
+              numberOfLines={1}
+              style={{
+                position: "absolute", left: 0, right: 0,
+                fontSize: 15, fontWeight: "700", color: C.text,
+                opacity: dateOpacity,
+              }}
+            >
+              {formatCompactDate(today)}
+            </Animated.Text>
+          </View>
+
+          {/* Right: Avatar — always visible */}
+          <TouchableOpacity
+            onPress={() => router.push("/settings")}
+            style={{
+              width: 34, height: 34, borderRadius: 17,
+              backgroundColor: C.accentBg, alignItems: "center", justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <Text style={{ fontSize: 12, fontWeight: "800", color: C.accent }}>
+              {initials || "👤"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Animated separator — fades in on scroll */}
+        <Animated.View style={{ height: 1, backgroundColor: C.borderStrong, opacity: borderOpacity }} />
+
         <ScrollView
           style={{ flex: 1 }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
           contentContainerStyle={{ paddingBottom: 32 }}
         >
-          {/* ── Hero Header ── */}
-          <View style={{ backgroundColor: C.headerBg, paddingHorizontal: 20, paddingTop: 24, paddingBottom: 20, ...SHADOW }}>
-            <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 26, fontWeight: "800", color: C.text, letterSpacing: -0.5 }}>
-                  {greeting.emoji} {greeting.text}{displayName ? `, ${displayName}` : ""}
-                </Text>
-                <Text style={{ fontSize: 14, color: C.textMuted, marginTop: 2 }}>
-                  {formatDisplayDate(today)}
-                </Text>
-              </View>
-              {/* Avatar → Settings */}
-              <TouchableOpacity
-                onPress={() => router.push("/settings")}
-                style={{
-                  width: 36, height: 36, borderRadius: 18,
-                  backgroundColor: C.accentBg, alignItems: "center", justifyContent: "center",
-                  marginLeft: 12,
-                }}
-              >
-                <Text style={{ fontSize: 12, fontWeight: "800", color: C.accent }}>
-                  {initials || "👤"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Stats row */}
-            <View style={{ flexDirection: "row", marginTop: 16, gap: 8, flexWrap: "wrap" }}>
+          {/* ── Date + Stats (scrolls away) ── */}
+          <View style={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: 16 }}>
+            <Text style={{ fontSize: 14, color: C.textMuted, fontWeight: "500" }}>
+              {formatDisplayDate(today)}
+            </Text>
+            {/* Stats chips */}
+            <View style={{ flexDirection: "row", marginTop: 10, gap: 8, flexWrap: "wrap" }}>
               <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: C.accentBg, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, gap: 5 }}>
-                <Ionicons name="checkmark-circle-outline" size={14} color={C.accent} />
+                <Ionicons name="checkmark-circle-outline" size={13} color={C.accent} />
                 <Text style={{ fontSize: 12, fontWeight: "700", color: C.accent }}>
                   {todayTasks.length} task{todayTasks.length !== 1 ? "s" : ""} today
                 </Text>
               </View>
               {overdueCount > 0 && (
                 <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#fef2f2", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, gap: 5 }}>
-                  <Ionicons name="warning-outline" size={14} color="#ef4444" />
+                  <Ionicons name="warning-outline" size={13} color="#ef4444" />
                   <Text style={{ fontSize: 12, fontWeight: "700", color: "#ef4444" }}>{overdueCount} overdue</Text>
                 </View>
               )}
@@ -236,7 +298,7 @@ export default function TodayScreen() {
                   onPress={() => setShowRollover(true)}
                   style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#fffbeb", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, gap: 5 }}
                 >
-                  <Ionicons name="time-outline" size={14} color="#d97706" />
+                  <Ionicons name="time-outline" size={13} color="#d97706" />
                   <Text style={{ fontSize: 12, fontWeight: "700", color: "#d97706" }}>{unfinished.length} unfinished</Text>
                 </TouchableOpacity>
               )}
@@ -244,7 +306,7 @@ export default function TodayScreen() {
           </View>
 
           {/* ── Tasks for Today ── */}
-          <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
+          <View style={{ paddingHorizontal: 16 }}>
             <SectionHeader title="Tasks for Today" icon="checkmark-circle-outline" colors={C}
               onAdd={() => { setEditTask(undefined); setShowAddTask(true); }} />
 
@@ -274,10 +336,9 @@ export default function TodayScreen() {
                 {todayTasks.map((task) => (
                   <TaskCard key={task.id} task={task} today={today} colors={C} onPress={() => openDetail(task)} />
                 ))}
-
                 {upcomingTasks.length > 0 && (
                   <>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 6, marginBottom: 2 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4, marginBottom: 2 }}>
                       <View style={{ flex: 1, height: 1, backgroundColor: C.borderStrong }} />
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: C.surface, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 }}>
                         <Ionicons name="time-outline" size={11} color={C.textMuted} />
@@ -289,9 +350,7 @@ export default function TodayScreen() {
                     </View>
                     {upcomingTasks.map((task) => {
                       const bucket = assignBucket(task) as "Tomorrow" | "This Week";
-                      return (
-                        <UpcomingTaskCard key={task.id} task={task} bucket={bucket} today={today} colors={C} onPress={() => openDetail(task)} />
-                      );
+                      return <UpcomingTaskCard key={task.id} task={task} bucket={bucket} today={today} colors={C} onPress={() => openDetail(task)} />;
                     })}
                   </>
                 )}
@@ -300,7 +359,7 @@ export default function TodayScreen() {
           </View>
 
           {/* ── Quick Notes ── */}
-          <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
+          <View style={{ paddingHorizontal: 16, marginTop: 24 }}>
             <SectionHeader title="Notes" icon="document-text-outline" colors={C} onAdd={() => setAddingNote(true)} />
             <View style={{ backgroundColor: C.card, borderRadius: 20, overflow: "hidden", ...SHADOW }}>
               {sheet?.quickNotes.map((note, i) => (
@@ -320,17 +379,11 @@ export default function TodayScreen() {
                   </TouchableOpacity>
                 </View>
               ))}
-
               {addingNote && (
                 <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
-                  <InlineInput
-                    value={noteInput} onChangeText={setNoteInput}
-                    placeholder="Add a note..." onSubmit={addQuickNote} colors={C}
-                    onCancel={() => { setAddingNote(false); setNoteInput(""); }}
-                  />
+                  <InlineInput value={noteInput} onChangeText={setNoteInput} placeholder="Add a note..." onSubmit={addQuickNote} colors={C} onCancel={() => { setAddingNote(false); setNoteInput(""); }} />
                 </View>
               )}
-
               {!sheet?.quickNotes.length && !addingNote && (
                 <TouchableOpacity onPress={() => setAddingNote(true)} style={{ padding: 16 }}>
                   <Text style={{ fontSize: 14, color: C.textPlaceholder, fontStyle: "italic" }}>Tap + to jot a note</Text>
@@ -340,7 +393,7 @@ export default function TodayScreen() {
           </View>
 
           {/* ── End-of-Day Reflection ── */}
-          <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
+          <View style={{ paddingHorizontal: 16, marginTop: 24 }}>
             <SectionHeader title="End-of-Day Reflection" icon="moon-outline" colors={C} />
             <View style={{ backgroundColor: C.card, borderRadius: 20, padding: 16, ...SHADOW }}>
               <TextInput
@@ -356,13 +409,13 @@ export default function TodayScreen() {
           </View>
         </ScrollView>
 
-        {/* ── Fast input bar ── */}
+        {/* ── Fast input bar — white/card background so it's always visible ── */}
         <View style={{
-          backgroundColor: C.headerBg,
+          backgroundColor: C.card,
           paddingHorizontal: 16, paddingVertical: 12,
           flexDirection: "row", alignItems: "center", gap: 10,
-          borderTopWidth: 1, borderTopColor: C.border,
-          ...Platform.select({ ios: { shadowColor: "#000", shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.04, shadowRadius: 8 }, android: {} }),
+          borderTopWidth: 1, borderTopColor: C.borderStrong,
+          ...SHADOW_UP,
         }}>
           <TouchableOpacity
             onPress={() => { setEditTask(undefined); setShowAddTask(true); }}
@@ -375,7 +428,12 @@ export default function TodayScreen() {
             onChangeText={setFastInput}
             placeholder="Capture anything quickly..."
             placeholderTextColor={C.textMuted}
-            style={{ flex: 1, fontSize: 14, color: C.text, backgroundColor: C.inputBg, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10 }}
+            style={{
+              flex: 1, fontSize: 14, color: C.text,
+              backgroundColor: C.inputBg,
+              borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10,
+              borderWidth: 1, borderColor: C.border,
+            }}
             returnKeyType="done"
             onSubmitEditing={handleFastInput}
           />
@@ -387,32 +445,13 @@ export default function TodayScreen() {
         </View>
       </KeyboardAvoidingView>
 
-      <AddTaskModal
-        visible={showAddTask}
-        onClose={() => { setShowAddTask(false); setEditTask(undefined); }}
-        onSave={handleSaveTask}
-        initial={editTask}
-      />
-      <TaskDetailSheet
-        task={selectedTask}
-        visible={detailVisible}
-        onClose={() => { setDetailVisible(false); setSelectedTask(null); }}
-        onUpdated={handleTaskUpdated}
-        onDeleted={handleTaskDeleted}
-      />
-      <RolloverModal
-        visible={showRollover}
-        tasks={unfinished}
-        onClose={() => setShowRollover(false)}
-        onConfirm={handleRolloverConfirm}
-        colors={C}
-      />
+      <AddTaskModal visible={showAddTask} onClose={() => { setShowAddTask(false); setEditTask(undefined); }} onSave={handleSaveTask} initial={editTask} />
+      <TaskDetailSheet task={selectedTask} visible={detailVisible} onClose={() => { setDetailVisible(false); setSelectedTask(null); }} onUpdated={handleTaskUpdated} onDeleted={handleTaskDeleted} />
+      <RolloverModal visible={showRollover} tasks={unfinished} onClose={() => setShowRollover(false)} onConfirm={handleRolloverConfirm} colors={C} />
     </SafeAreaView>
   );
 }
 
-// ─────────────────────────────────────────────
-// Task Card
 // ─────────────────────────────────────────────
 function TaskCard({ task, today, colors: C, onPress }: { task: Task; today: string; colors: any; onPress: () => void }) {
   const overdue    = task.dueDate && task.dueDate < today;
@@ -426,9 +465,7 @@ function TaskCard({ task, today, colors: C, onPress }: { task: Task; today: stri
       <View style={{ width: 4, backgroundColor: stripColor }} />
       <View style={{ flex: 1, padding: 14, flexDirection: "row", alignItems: "flex-start" }}>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 15, fontWeight: "700", color: C.text, lineHeight: 21, marginBottom: 6 }}>
-            {task.title}
-          </Text>
+          <Text style={{ fontSize: 15, fontWeight: "700", color: C.text, lineHeight: 21, marginBottom: 6 }}>{task.title}</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
             <View className={`px-2.5 py-1 rounded-full ${catBg}`}>
               <Text className={`text-xs font-semibold ${catTxt}`}>{task.category}</Text>
@@ -457,9 +494,7 @@ function TaskCard({ task, today, colors: C, onPress }: { task: Task; today: stri
               </View>
             )}
           </View>
-          {task.notes ? (
-            <Text style={{ fontSize: 12, color: C.textMuted, marginTop: 6, lineHeight: 17 }} numberOfLines={1}>{task.notes}</Text>
-          ) : null}
+          {task.notes ? <Text style={{ fontSize: 12, color: C.textMuted, marginTop: 6, lineHeight: 17 }} numberOfLines={1}>{task.notes}</Text> : null}
         </View>
         <Ionicons name="chevron-forward" size={16} color={C.borderStrong} style={{ marginTop: 2, marginLeft: 8 }} />
       </View>
@@ -467,45 +502,27 @@ function TaskCard({ task, today, colors: C, onPress }: { task: Task; today: stri
   );
 }
 
-// ─────────────────────────────────────────────
-// Upcoming Task Card
-// ─────────────────────────────────────────────
 function UpcomingTaskCard({ task, bucket, today, colors: C, onPress }: {
   task: Task; bucket: "Tomorrow" | "This Week"; today: string; colors: any; onPress: () => void;
 }) {
-  const catBg  = CAT_BG[task.category]   ?? "bg-gray-100";
-  const catTxt = CAT_TEXT[task.category] ?? "text-gray-600";
+  const catBg      = CAT_BG[task.category]   ?? "bg-gray-100";
+  const catTxt     = CAT_TEXT[task.category] ?? "text-gray-600";
   const stripColor = CAT_STRIP[task.category] ?? "#d1d5db";
-  const bucketCfg = bucket === "Tomorrow"
+  const bucketCfg  = bucket === "Tomorrow"
     ? { label: "🌅 Tomorrow", bg: "#fffbeb", text: "#d97706" }
     : { label: "📅 This Week", bg: "#e0f2fe", text: "#0284c7" };
 
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.75}
-      style={{
-        backgroundColor: C.card,
-        borderRadius: 18,
-        flexDirection: "row",
-        overflow: "hidden",
-        borderWidth: 1,
-        borderColor: C.border,
-        ...SHADOW,
-      }}
-    >
-      {/* Dimmed strip — slightly thinner than today tasks to visually de-emphasise */}
+    <TouchableOpacity onPress={onPress} activeOpacity={0.75}
+      style={{ backgroundColor: C.card, borderRadius: 18, flexDirection: "row", overflow: "hidden", borderWidth: 1, borderColor: C.border, ...SHADOW }}>
       <View style={{ width: 3, backgroundColor: stripColor, opacity: 0.55 }} />
       <View style={{ flex: 1, paddingHorizontal: 14, paddingVertical: 12, flexDirection: "row", alignItems: "flex-start" }}>
         <View style={{ flex: 1 }}>
-          {/* Bucket badge on its own line so it's clearly legible */}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 5 }}>
             <View style={{ backgroundColor: bucketCfg.bg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
               <Text style={{ fontSize: 10, fontWeight: "800", color: bucketCfg.text }}>{bucketCfg.label}</Text>
             </View>
-            {task.dueDate && (
-              <Text style={{ fontSize: 11, color: C.textMuted }}>{formatShortDate(task.dueDate)}</Text>
-            )}
+            {task.dueDate && <Text style={{ fontSize: 11, color: C.textMuted }}>{formatShortDate(task.dueDate)}</Text>}
           </View>
           <Text style={{ fontSize: 14, fontWeight: "600", color: C.text, lineHeight: 19, marginBottom: 4 }}>{task.title}</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 5, alignItems: "center" }}>
@@ -525,9 +542,6 @@ function UpcomingTaskCard({ task, bucket, today, colors: C, onPress }: {
   );
 }
 
-// ─────────────────────────────────────────────
-// Section Header
-// ─────────────────────────────────────────────
 function SectionHeader({ title, icon, onAdd, colors: C }: {
   title: string; icon: keyof typeof Ionicons.glyphMap; onAdd?: () => void; colors: any;
 }) {
@@ -546,9 +560,6 @@ function SectionHeader({ title, icon, onAdd, colors: C }: {
   );
 }
 
-// ─────────────────────────────────────────────
-// Inline Input
-// ─────────────────────────────────────────────
 function InlineInput({ value, onChangeText, placeholder, onSubmit, onCancel, colors: C }: {
   value: string; onChangeText: (v: string) => void; placeholder: string;
   onSubmit: () => void; onCancel: () => void; colors: any;
@@ -567,9 +578,6 @@ function InlineInput({ value, onChangeText, placeholder, onSubmit, onCancel, col
   );
 }
 
-// ─────────────────────────────────────────────
-// Rollover Modal
-// ─────────────────────────────────────────────
 type RolloverDecision = "tomorrow" | "keep" | "done" | "delete";
 const ROLLOVER_OPTS: { key: RolloverDecision; label: string; color: string }[] = [
   { key: "tomorrow", label: "Tomorrow", color: "#f59e0b" },
@@ -584,10 +592,6 @@ function RolloverModal({ visible, tasks, onClose, onConfirm, colors: C }: {
 }) {
   const [decisions, setDecisions] = useState<Record<string, RolloverDecision>>({});
   useEffect(() => { if (visible) setDecisions({}); }, [visible]);
-
-  function setDecision(id: string, d: RolloverDecision) {
-    setDecisions((prev) => ({ ...prev, [id]: d }));
-  }
 
   async function confirm() {
     const tomorrow = (() => {
@@ -608,11 +612,9 @@ function RolloverModal({ visible, tasks, onClose, onConfirm, colors: C }: {
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
-        <View style={{ backgroundColor: C.headerBg, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: C.border }}>
+        <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: C.border }}>
           <Text style={{ fontSize: 20, fontWeight: "800", color: C.text }}>End-of-Day Review</Text>
-          <Text style={{ fontSize: 14, color: C.textMuted, marginTop: 4 }}>
-            {tasks.length} task{tasks.length !== 1 ? "s" : ""} unfinished — what should happen?
-          </Text>
+          <Text style={{ fontSize: 14, color: C.textMuted, marginTop: 4 }}>{tasks.length} task{tasks.length !== 1 ? "s" : ""} unfinished — what should happen?</Text>
         </View>
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 12 }}>
           {tasks.map((task) => {
@@ -622,11 +624,8 @@ function RolloverModal({ visible, tasks, onClose, onConfirm, colors: C }: {
                 <Text style={{ fontSize: 14, fontWeight: "700", color: C.text, marginBottom: 12 }} numberOfLines={2}>{task.title}</Text>
                 <View style={{ flexDirection: "row", gap: 6 }}>
                   {ROLLOVER_OPTS.map((opt) => (
-                    <TouchableOpacity
-                      key={opt.key}
-                      onPress={() => setDecision(task.id, opt.key)}
-                      style={{ flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: "center", backgroundColor: dec === opt.key ? opt.color : C.surface }}
-                    >
+                    <TouchableOpacity key={opt.key} onPress={() => setDecisions((p) => ({ ...p, [task.id]: opt.key }))}
+                      style={{ flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: "center", backgroundColor: dec === opt.key ? opt.color : C.surface }}>
                       <Text style={{ fontSize: 11, fontWeight: "700", color: dec === opt.key ? "#fff" : C.textMuted }}>{opt.label}</Text>
                     </TouchableOpacity>
                   ))}

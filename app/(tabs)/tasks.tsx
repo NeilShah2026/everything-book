@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   TextInput,
   Platform,
   ScrollView,
+  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -54,13 +55,31 @@ export default function TasksScreen() {
   const today = todayISO();
   const { colors: C } = useTheme();
 
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks]   = useState<Task[]>([]);
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
 
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [selectedTask, setSelectedTask]   = useState<Task | null>(null);
   const [detailVisible, setDetailVisible] = useState(false);
+
+  // ── Collapsing header animation ───────────────
+  const compactOpacity = useRef(new Animated.Value(0)).current;
+  const borderOpacity  = useRef(new Animated.Value(0)).current;
+
+  function handleScroll(e: any) {
+    const y = e.nativeEvent.contentOffset.y;
+    Animated.timing(compactOpacity, {
+      toValue: y > 80 ? 1 : 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+    Animated.timing(borderOpacity, {
+      toValue: y > 8 ? 1 : 0,
+      duration: 100,
+      useNativeDriver: true,
+    }).start();
+  }
 
   useFocusEffect(useCallback(() => { load(); }, []));
 
@@ -79,7 +98,6 @@ export default function TasksScreen() {
 
   const isDraggable = filter === "All" && !search.trim();
 
-  // Active tasks only — done tasks move to Archive
   const displayed = tasks.filter((t) => {
     if (t.status === "Done") return false;
     const matchCat    = filter === "All" || t.category === filter;
@@ -106,11 +124,11 @@ export default function TasksScreen() {
   }
 
   function renderTask({ item: task, drag, isActive }: RenderItemParams<Task>) {
-    const isDone = task.status === "Done";
-    const overdue = task.dueDate && isOverdue(task.dueDate) && !isDone;
+    const isDone     = task.status === "Done";
+    const overdue    = task.dueDate && isOverdue(task.dueDate) && !isDone;
     const stripColor = CAT_STRIP[task.category] ?? C.borderStrong;
-    const catBg  = CAT_BG[task.category]  ?? "bg-gray-100";
-    const catTxt = CAT_TEXT[task.category] ?? "text-gray-600";
+    const catBg      = CAT_BG[task.category]  ?? "bg-gray-100";
+    const catTxt     = CAT_TEXT[task.category] ?? "text-gray-600";
 
     return (
       <ScaleDecorator activeScale={0.97}>
@@ -126,10 +144,7 @@ export default function TasksScreen() {
             isDone && { opacity: 0.6 },
           ]}
         >
-          {/* Category strip */}
           <View style={{ width: 4, backgroundColor: isDone ? C.borderStrong : stripColor }} />
-
-          {/* Content */}
           <View style={{ flex: 1, padding: 14 }}>
             <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
               <View style={{ flex: 1 }}>
@@ -181,8 +196,6 @@ export default function TasksScreen() {
                   </Text>
                 ) : null}
               </View>
-
-              {/* Drag handle or chevron */}
               <View style={{ alignItems: "center", gap: 6, marginLeft: 10, marginTop: 2 }}>
                 {isDraggable && !isDone && (
                   <Ionicons name="reorder-three-outline" size={20} color={C.border} />
@@ -196,49 +209,38 @@ export default function TasksScreen() {
     );
   }
 
-  return (
-    <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: C.bg }}>
-      {/* ── Header ── */}
-      <View style={{ backgroundColor: C.headerBg, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, ...SHADOW }}>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-          <View>
-            <Text style={{ fontSize: 26, fontWeight: "800", color: C.text, letterSpacing: -0.5 }}>Tasks</Text>
-            <Text style={{ fontSize: 13, color: C.textMuted, marginTop: 1 }}>
-              {activeCount > 0 ? `${activeCount} active` : "Nothing active — great work!"}
-            </Text>
-          </View>
-          <TouchableOpacity
-            onPress={() => setShowAdd(true)}
-            style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: C.accent, alignItems: "center", justifyContent: "center", ...SHADOW }}
-          >
-            <Ionicons name="add" size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Search */}
-        <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: C.inputBg, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 10, gap: 8 }}>
-          <Ionicons name="search-outline" size={16} color={C.textMuted} />
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search tasks..."
-            placeholderTextColor={C.textMuted}
-            style={{ flex: 1, fontSize: 14, color: C.text }}
-          />
-          {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch("")}>
-              <Ionicons name="close-circle" size={16} color={C.textMuted} />
-            </TouchableOpacity>
-          )}
-        </View>
+  // ── Scrollable header (subtitle + filters) ──
+  const ListHeader = (
+    <View>
+      {/* Subtitle / count */}
+      <View style={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 }}>
+        <Text style={{ fontSize: 13, color: C.textMuted }}>
+          {activeCount > 0 ? `${activeCount} active task${activeCount !== 1 ? "s" : ""}` : "Nothing active — great work!"}
+        </Text>
       </View>
 
-      {/* ── Filter chips ── */}
+      {/* Search bar */}
+      <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: C.inputBg, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 10, gap: 8, marginHorizontal: 16, marginBottom: 12 }}>
+        <Ionicons name="search-outline" size={16} color={C.textMuted} />
+        <TextInput
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search tasks..."
+          placeholderTextColor={C.textMuted}
+          style={{ flex: 1, fontSize: 14, color: C.text }}
+        />
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => setSearch("")}>
+            <Ionicons name="close-circle" size={16} color={C.textMuted} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Filter chips */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 12, gap: 8 }}
-        style={{ backgroundColor: C.headerBg, borderBottomWidth: 1, borderBottomColor: C.border, flexGrow: 0 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 10, gap: 8 }}
       >
         {FILTERS.map((f) => {
           const active = filter === f;
@@ -261,13 +263,37 @@ export default function TasksScreen() {
 
       {/* Drag hint */}
       {isDraggable && tasks.filter((t) => t.status !== "Done").length > 1 && (
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 2 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 20, paddingTop: 4, paddingBottom: 6 }}>
           <Ionicons name="reorder-three-outline" size={13} color={C.border} />
           <Text style={{ fontSize: 11, color: C.border }}>Long-press to reorder</Text>
         </View>
       )}
+    </View>
+  );
 
-      {/* ── Draggable Task List ── */}
+  return (
+    <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: C.bg }}>
+
+      {/* ── Compact nav bar — title always visible ── */}
+      <View style={{
+        height: 52,
+        flexDirection: "row", alignItems: "center",
+        paddingHorizontal: 20,
+        backgroundColor: C.bg,
+      }}>
+        <Text style={{ flex: 1, fontSize: 17, fontWeight: "800", color: C.text, letterSpacing: -0.3 }}>Tasks</Text>
+        <TouchableOpacity
+          onPress={() => setShowAdd(true)}
+          style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: C.accent, alignItems: "center", justifyContent: "center" }}
+        >
+          <Ionicons name="add" size={22} color="#fff" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Separator — fades in on scroll */}
+      <Animated.View style={{ height: 1, backgroundColor: C.borderStrong, opacity: borderOpacity }} />
+
+      {/* Draggable task list */}
       <View style={{ flex: 1 }}>
         <DraggableFlatList
           data={displayed}
@@ -276,9 +302,12 @@ export default function TasksScreen() {
           onDragEnd={handleDragEnd}
           activationDistance={8}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingTop: 12, paddingBottom: doneCount > 0 ? 8 : 32 }}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          ListHeaderComponent={ListHeader}
+          contentContainerStyle={{ paddingBottom: doneCount > 0 ? 8 : 32 }}
           ListEmptyComponent={
-            <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 80, paddingHorizontal: 32 }}>
+            <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 60, paddingHorizontal: 32 }}>
               <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: C.surface, alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
                 <Ionicons name="checkmark-circle-outline" size={36} color={C.border} />
               </View>
@@ -295,7 +324,7 @@ export default function TasksScreen() {
         />
       </View>
 
-      {/* ── Completed tasks hint — pinned above tab bar, never floating ── */}
+      {/* Completed tasks hint — pinned above tab bar */}
       {doneCount > 0 && (
         <View style={{ marginHorizontal: 16, marginBottom: 8, padding: 14, borderRadius: 16, backgroundColor: "#f0fdf4", flexDirection: "row", alignItems: "center", gap: 8 }}>
           <Ionicons name="checkmark-circle" size={16} color="#22c55e" />
