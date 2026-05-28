@@ -90,14 +90,10 @@ const TESTIMONIALS = [
   { init: "S", col: "#10b981", name: "Sarah K.",  role: "High school teacher", q: "Quick capture alone changed my workflow. I never lose a thought or task anymore." },
 ];
 
-const PRICING_FEATURES = [
-  "Unlimited tasks & notes",
-  "Smart daily planner",
-  "Built-in focus timer",
-  "Evening reflections",
-  "Full searchable archive",
-  "Beautiful light & dark themes",
-  "Sync across all your devices",
+
+const TICKER_APPS = [
+  "Todoist", "Notion", "Toggl", "Day One", "Apple Reminders",
+  "Things 3", "Obsidian", "Fantastical", "Bear", "OmniFocus",
 ];
 
 const CONTENT_MAX = 1120;
@@ -106,7 +102,6 @@ const GAP         = 20;
 const NAV_LINKS = [
   { label: "How it works", key: "howItWorks" as const },
   { label: "Features",     key: "features"   as const },
-  { label: "Pricing",      key: "pricing"    as const },
 ];
 
 type SectionKey = typeof NAV_LINKS[number]["key"];
@@ -380,27 +375,71 @@ export default function LandingPage() {
           </View>
         </View>
 
-        {/* ══ TRUST STRIP ═══════════════════════════════════════════════════ */}
-        <View style={[{
+        {/* ══ TRUST STRIP — stock ticker ════════════════════════════════════ */}
+        <View style={{
           borderTopWidth: 1, borderBottomWidth: 1, borderColor: C.border,
-          paddingVertical: 20,
-          backgroundColor: C.bgCard,
-        }]}>
-          <View style={[{ flexDirection: "row" }, Platform.select({ default: { overflow: "hidden" } as any }) ?? {}]}>
+          backgroundColor: C.bgMid,
+          flexDirection: "row", alignItems: "center",
+        }}>
+
+          {/* Fixed "REPLACES" label */}
+          <View style={{
+            paddingHorizontal: isWide ? 28 : 14, paddingVertical: 16,
+            borderRightWidth: 1, borderRightColor: C.borderHi,
+            flexShrink: 0, zIndex: 2, backgroundColor: C.bgMid,
+          }}>
+            <Text style={{
+              fontFamily: FF.body, fontSize: 9, fontWeight: "700",
+              color: C.textMute, letterSpacing: 2,
+            }}>
+              REPLACES
+            </Text>
+          </View>
+
+          {/* Scrolling ticker track */}
+          <View style={[
+            { flex: 1, position: "relative" as any },
+            Platform.select({ default: { overflow: "hidden" } as any }) ?? {},
+          ]}>
+
+            {/* Left edge fade */}
             <View style={[{
-              flexDirection: "row", alignItems: "center", gap: 48, paddingHorizontal: 40,
+              position: "absolute", left: 0, top: 0, bottom: 0, width: 48, zIndex: 1,
             }, Platform.select({ default: {
-              animation: "marqueeScroll 28s linear infinite",
-              flexShrink: 0, whiteSpace: "nowrap",
+              background: `linear-gradient(to right, ${C.bgMid} 0%, transparent 100%)`,
+              pointerEvents: "none",
+            } as any }) ?? {}]} />
+
+            {/* Right edge fade */}
+            <View style={[{
+              position: "absolute", right: 0, top: 0, bottom: 0, width: 48, zIndex: 1,
+            }, Platform.select({ default: {
+              background: `linear-gradient(to left, ${C.bgMid} 0%, transparent 100%)`,
+              pointerEvents: "none",
+            } as any }) ?? {}]} />
+
+            {/* Ticker content — doubled for seamless loop */}
+            <View style={[{
+              flexDirection: "row", alignItems: "center",
+            }, Platform.select({ default: {
+              animation: "marqueeScroll 26s linear infinite",
+              flexShrink: 0,
+              whiteSpace: "nowrap",
             } as any }) ?? {}]}>
-              {[
-                "Todoist","Notion","Toggl","Day One","Apple Reminders",
-                "Todoist","Notion","Toggl","Day One","Apple Reminders",
-              ].map((app, i) => (
-                <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                  <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: C.textMute }} />
-                  <Text style={{ fontFamily: FF.body, fontSize: 12, fontWeight: "600", color: C.textSec, letterSpacing: 1 }}>
-                    {app.toUpperCase()}
+              {[...TICKER_APPS, ...TICKER_APPS].map((app, i) => (
+                <View key={i} style={{
+                  flexDirection: "row", alignItems: "center",
+                  paddingHorizontal: 24, paddingVertical: 16, gap: 10,
+                }}>
+                  <View style={{
+                    width: 4, height: 4, borderRadius: 2,
+                    backgroundColor: C.accent, opacity: 0.5,
+                  }} />
+                  <Text style={{
+                    fontFamily: FF.body, fontSize: 13, fontWeight: "600",
+                    color: C.textSec, letterSpacing: 0.5,
+                  }}>
+                    {app}
                   </Text>
                 </View>
               ))}
@@ -508,119 +547,6 @@ export default function LandingPage() {
                   </View>
                 </View>
               ))}
-            </View>
-          </View>
-        </View>
-
-        {/* ══ PRICING ═══════════════════════════════════════════════════════ */}
-        <View
-          onLayout={track("pricing")}
-          style={{
-            paddingVertical: isWide ? 104 : 68,
-            backgroundColor: L.bgAlt,
-            borderTopWidth: 1, borderTopColor: L.border,
-          }}
-        >
-          <View style={{
-            maxWidth: 620, alignSelf: "center", width: "100%",
-            paddingHorizontal: pad, alignItems: "center",
-          }}>
-            <LightSectionLabel>PRICING</LightSectionLabel>
-            <View style={{ height: 20 }} />
-
-            <Text style={{
-              fontFamily: FF.display,
-              fontSize: isWide ? 58 : 42, fontWeight: "900",
-              color: L.text, letterSpacing: -2, textAlign: "center",
-              lineHeight: isWide ? 66 : 50, marginBottom: 12,
-            }}>
-              It's free.
-            </Text>
-            <Text style={{
-              fontFamily: FF.display, fontSize: isWide ? 24 : 19, fontWeight: "400",
-              color: L.textSec, fontStyle: "italic", textAlign: "center",
-              lineHeight: isWide ? 32 : 28, marginBottom: 48,
-            }}>
-              Always. No trial. No credit card. No catch.
-            </Text>
-
-            {/* Pricing card */}
-            <View style={[{
-              backgroundColor: L.bgCard, borderRadius: 28,
-              padding: isWide ? 44 : 28,
-              borderWidth: 1, borderColor: L.border,
-              width: "100%",
-            }, sh("0 8px 40px rgba(0,0,0,0.08)")]}>
-
-              {/* Plan header */}
-              <View style={{
-                flexDirection: "row", alignItems: "flex-start",
-                justifyContent: "space-between", marginBottom: 28,
-              }}>
-                <View>
-                  <Text style={{
-                    fontFamily: FF.body, fontSize: 11, fontWeight: "700",
-                    color: L.textMute, letterSpacing: 1.2, marginBottom: 4,
-                  }}>
-                    EVERYTHING PLAN
-                  </Text>
-                  <Text style={{
-                    fontFamily: FF.display, fontSize: 52, fontWeight: "900",
-                    color: L.text, letterSpacing: -2, lineHeight: 56,
-                  }}>
-                    $0
-                  </Text>
-                  <Text style={{ fontFamily: FF.body, fontSize: 14, color: L.textSec, marginTop: 2 }}>
-                    forever free
-                  </Text>
-                </View>
-                <View style={{
-                  backgroundColor: L.accentBg, paddingHorizontal: 16, paddingVertical: 9,
-                  borderRadius: 20, borderWidth: 1, borderColor: L.accentBdr,
-                }}>
-                  <Text style={{ fontFamily: FF.body, fontSize: 13, fontWeight: "700", color: L.accentHi }}>
-                    🎉 No cost ever
-                  </Text>
-                </View>
-              </View>
-
-              {/* Divider */}
-              <View style={{ height: 1, backgroundColor: L.border, marginBottom: 28 }} />
-
-              {/* Feature checklist */}
-              <View style={{ gap: 16, marginBottom: 36 }}>
-                {PRICING_FEATURES.map((f, i) => (
-                  <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
-                    <View style={{
-                      width: 24, height: 24, borderRadius: 12,
-                      backgroundColor: L.accentBg, borderWidth: 1, borderColor: L.accentBdr,
-                      alignItems: "center", justifyContent: "center", flexShrink: 0,
-                    }}>
-                      <Ionicons name="checkmark" size={13} color={L.accentHi} />
-                    </View>
-                    <Text style={{ fontFamily: FF.body, fontSize: 15, color: L.text, fontWeight: "500" }}>
-                      {f}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-
-              {/* CTA */}
-              <TouchableOpacity
-                onPress={goAuth}
-                className="btn-lift"
-                style={[{
-                  paddingVertical: 17, borderRadius: 24,
-                  backgroundColor: L.accent,
-                  flexDirection: "row", alignItems: "center",
-                  justifyContent: "center", gap: 8,
-                }, sh("0 6px 32px rgba(99,102,241,0.35)")]}
-              >
-                <Text style={{ fontFamily: FF.body, fontSize: 16, fontWeight: "800", color: "#fff" }}>
-                  Get started — it's free
-                </Text>
-                <Ionicons name="arrow-forward" size={16} color="#fff" />
-              </TouchableOpacity>
             </View>
           </View>
         </View>

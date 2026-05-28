@@ -214,7 +214,11 @@ function FormCard({ isDesktop }: { isDesktop: boolean }) {
         const { error } = await supabase.auth.signInWithPassword({ email: trimEmail, password });
         if (error) throw error;
       } else {
-        const { error } = await supabase.auth.signUp({ email: trimEmail, password });
+        const { error } = await supabase.auth.signUp({
+          email: trimEmail,
+          password,
+          options: { emailRedirectTo: "https://everything-book.vercel.app" },
+        });
         if (error) throw error;
         setSuccessMsg("Account created! Check your email to confirm, then sign in.");
         switchMode("signin");
